@@ -1,0 +1,78 @@
+data_sources:
+  vpcs:
+    non_prod_vpc:
+      name: my_vpc
+  subnets:
+    subnet_a:
+      name: subnet-a
+      vpc: non_prod_vpc
+    subnet_b:
+      name: subnet-b
+      vpc: non_prod_vpc
+  amis:
+    ec2_deploy:
+      owners:
+        - 591542846629
+      filters:
+        name:
+          - amzn2-ami-ecs-gpu-hvm-2.0.*-x86_64-ebs
+        virtualization-type:
+          - hvm
+    amazon_linux:
+      owners:
+        - 591542846629
+      filters:
+        name:
+          - amzn-ami-2018.03.*-amazon-ecs-optimized
+        virtualization-type:
+          - hvm
+  security_groups:
+    allow_mariadb:
+      name: allow_mariadb
+  route53_zones:
+    looselytyped:
+      name: "looselytyped."
+      private: false
+resources:
+  s3:
+    - name: com.looselytyped.dynamic-terraform-backend
+      force_destroy: true
+      object_lock_enabled: true
+    - name: com.looselytyped.website-assets
+      force_destroy: false
+      object_lock_enabled: true
+  routes:
+    internal:
+      - name: api
+        records:
+          - instance: api_service
+  instances:
+    api_service:
+      ami: ec2_deploy
+      size: t3.small
+      subnet: subnet_a
+      description: API Service
+      security_groups:
+        - sec_dev5_22
+        - allow_mariadb
+  security_groups:
+    sec_dev5_22:
+      description: SSH Access
+      vpc: non_prod_vpc
+      ingress:
+        - from: 22
+          to: 22
+          protocol: tcp
+          cidr_blocks:
+            - non_prod_vpc
+        - from: -1
+          to: -1
+          protocol: icmp
+          cidr_blocks:
+            - 0.0.0.0/0
+      egress:
+        - from: 0
+          to: 0
+          protocol: -1
+          cidr_blocks:
+            - 0.0.0.0/0
