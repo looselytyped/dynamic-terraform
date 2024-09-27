@@ -23,3 +23,8 @@ provider "aws" {
     route53resolver = "http://localhost:4566"
   }
 }
+
+locals {
+  # this will read the yaml file and parse it into
+  resources = yamldecode(file("infra.yaml")).resources
+}
