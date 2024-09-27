@@ -28,3 +28,9 @@ locals {
   # this will read the yaml file and parse it into
   resources = yamldecode(file("infra.yaml")).resources
 }
+
+# aws --profile localstack s3api list-buckets
+resource "aws_s3_bucket" "bucket" {
+  for_each = toset(local.resources.s3)
+  bucket   = each.key
+}
