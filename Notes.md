@@ -113,3 +113,66 @@ Go back to the first terminal
 # Clean up afterwards
 docker compose down -v
 ```
+
+## Demo
+
+### Discussion: Reading YAML files into Terraform
+
+Consider some YAML (in `infra.yaml`):
+
+```yaml
+resources:
+  s3:
+    - sample-bucket
+    - sample-bucket1
+```
+
+Let's see how we can slurp in YAML into Terraform.
+Within `terraform console`,
+
+```hcl
+# this will read the yaml file and parse it into
+yamldecode(file("infra.yaml")).data_sources
+
+# see what it looks like
+local.resources.s3
+```
+
+Let's pull this into our Terraform script:
+
+```
+locals {
+  # this will read the yaml file and parse it into
+  resources = yamldecode(file("infra.yaml")).resources
+}
+```
+
+### Discussion: Working with lists:
+
+Let's try to use this to construct new S3 buckets:
+
+
+```
+resource "aws_s3_bucket" "bucket" {
+  for_each = local.resources.s3
+  bucket = each.key
+}
+```
+
+`for_each` needs a map, or a _set_ of strings.
+So, let's try to convert it to a set.
+
+### Discussion: Working with sets
+
+You can use the function `toset` to convert a list of items into a `set`:
+
+```
+resource "aws_s3_bucket" "bucket" {
+  for_each = toset(local.resources.s3)
+  bucket = each.key
+}
+```
+
+Yay!
+However, what if you want slightly more configuration backed in?
+
