@@ -1,0 +1,4 @@
+resources:
+  s3:
+    - sample-bucket
+    - sample-bucket1
