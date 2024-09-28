@@ -1,4 +1,8 @@
 resources:
   s3:
-    - sample-bucket
-    - sample-bucket1
+    - name: sample-bucket
+      force_destroy: true
+      object_lock_enabled: true
+    - name: sample-bucket1
+      force_destroy: false
+      object_lock_enabled: true
