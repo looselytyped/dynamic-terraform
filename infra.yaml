@@ -2,6 +2,13 @@ data_sources:
   vpcs:
     non_prod_vpc:
       name: my_vpc
+  subnets:
+    subnet_a:
+      name: subnet-a
+      vpc: non_prod_vpc
+    subnet_b:
+      name: subnet-b
+      vpc: non_prod_vpc
 resources:
   s3:
     - name: sample-bucket

@@ -38,6 +38,15 @@ data "aws_vpc" "vpcs" {
   }
 }
 
+data "aws_subnet" "subnets" {
+  for_each = local.data_sources.subnets
+  vpc_id   = lookup(data.aws_vpc.vpcs, each.value.vpc).id
+
+  tags = {
+    Name = each.value.name
+  }
+}
+
 # aws --profile localstack s3api list-buckets
 resource "aws_s3_bucket" "bucket" {
   for_each = { for i in local.resources.s3 : i.name => i }
