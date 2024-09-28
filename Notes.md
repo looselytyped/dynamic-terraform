@@ -242,3 +242,45 @@ resource "aws_s3_bucket" "bucket" {
 }
 ```
 
+### Discussion: Let's look up some VPCs
+
+We have existing infrastructure setup for us, which we'll need to reference within our script.
+We can look up a VPC using tags, so first, let's create some YAML that gives us a way to record VPC names.
+**Note** that we are going to create a new set of entries under `data_sources`.
+
+```yaml
+data_sources:
+  vpcs:
+    non_prod_vpc:
+      name: my_vpc
+```
+
+Next, let's capture that as a `locals` variable:
+
+```hcl
+data_sources = yamldecode(file("infra.yaml")).data_sources
+```
+
+With this in place, we can use the console to see what this looks like:
+
+```
+local.data_sources.vpcs
+```
+
+Let's see how we can use this in our Terraform script:
+
+```hcl
+data "aws_vpc" "vpcs" {
+  for_each = local.data_sources.vpcs
+  tags = {
+    Name = each.value.name
+  }
+}
+```
+
+And again, in the console:
+
+```
+data.aws_vpc.vpcs
+```
+
