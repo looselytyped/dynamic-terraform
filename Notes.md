@@ -284,3 +284,56 @@ And again, in the console:
 data.aws_vpc.vpcs
 ```
 
+### Discussion: Let's do subnets next
+
+Subnets are associated with VPCs.
+When we look up subnets, we can use their name, but we also need to know which
+VPC they belong to.
+So here's what the YAML looks like:
+
+```yaml
+  subnets:
+    subnet_a:
+      name: subnet-a
+      vpc: non_prod_vpc
+    subnet_b:
+      name: subnet-b
+      vpc: non_prod_vpc
+```
+
+Let's see what the console has to offer:
+
+```
+# notice there are a lot!
+local.data_sources.subnets
+```
+
+Remember, we have to use the `Name` tag, _and_ the VPC.
+We will use the `lookup` function.
+Let's see this in the console:
+
+```
+lookup(data.aws_vpc.vpcs, "non_prod_vpc").id
+```
+
+Now, we will use it in our Terraform script:
+
+```
+data "aws_subnet" "subnets" {
+  for_each = local.data_sources.subnets
+  vpc_id   = lookup(data.aws_vpc.vpcs, each.value.vpc).id
+
+  tags = {
+    Name = each.value.name
+  }
+}
+```
+
+Let's make sure it worked.
+Using the console:
+
+```
+ data.aws_subnet.subnets
+```
+
+
