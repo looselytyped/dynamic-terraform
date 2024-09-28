@@ -176,3 +176,69 @@ resource "aws_s3_bucket" "bucket" {
 Yay!
 However, what if you want slightly more configuration backed in?
 
+### Discussion: Working with
+Let's see what we can do about something like this (again, this won't work):
+
+```yaml
+  s3:
+    - name: sample-bucket
+      force_destroy: true
+    - name: sample-bucket1
+      force_destroy: false
+```
+
+We can test this in Terraform console by inspecting `local.resources.s3`
+
+This is _an array_ of maps.
+We can try to convert this into a `map`, using the following:
+
+```bash
+# terraform console
+{ for i in local.resources.s3: i.name => i.force_destroy }
+```
+
+Great!
+We have a map.
+Now we can use this in our HCL:
+
+```hcl
+resource "aws_s3_bucket" "bucket" {
+  for_each = { for i in local.resources.s3 : i.name => i.force_destroy }
+
+  bucket        = each.key
+  force_destroy = each.value
+}
+```
+
+Of course, we can do better.
+This only works if you can reduce it down to a key-value pair, but you might be better served with this:
+
+```yaml
+  s3:
+    - name: sample-bucket
+      force_destroy: true
+      object_lock_enabled: true
+    - name: sample-bucket1
+      force_destroy: false
+      object_lock_enabled: true
+```
+
+Let's look at this in the console:
+
+```
+{ for i in local.resources.s3: i.name => i }
+```
+
+We are just using something unique to create the key, that points to the whole object.
+And we can use it like this:
+
+```
+resource "aws_s3_bucket" "bucket" {
+  for_each = { for i in local.resources.s3 : i.name => i }
+
+  bucket              = each.value.name
+  force_destroy       = each.value.force_destroy
+  object_lock_enabled = each.value.object_lock_enabled
+}
+```
+
