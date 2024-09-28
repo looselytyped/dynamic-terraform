@@ -25,8 +25,17 @@ provider "aws" {
 }
 
 locals {
+  data_sources = yamldecode(file("infra.yaml")).data_sources
   # this will read the yaml file and parse it into
   resources = yamldecode(file("infra.yaml")).resources
+}
+
+# aws --profile localstack ec2 describe-vpcs | jq
+data "aws_vpc" "vpcs" {
+  for_each = local.data_sources.vpcs
+  tags = {
+    Name = each.value.name
+  }
 }
 
 # aws --profile localstack s3api list-buckets
