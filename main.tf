@@ -31,6 +31,9 @@ locals {
 
 # aws --profile localstack s3api list-buckets
 resource "aws_s3_bucket" "bucket" {
-  for_each = toset(local.resources.s3)
-  bucket   = each.key
+  for_each = { for i in local.resources.s3 : i.name => i }
+
+  bucket              = each.value.name
+  force_destroy       = each.value.force_destroy
+  object_lock_enabled = each.value.object_lock_enabled
 }
