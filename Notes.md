@@ -336,4 +336,31 @@ Using the console:
  data.aws_subnet.subnets
 ```
 
+### Discussion: Finish our lookups, with Route53 zones
 
+We will need to set up routing—so we will need to look up Route 53 zones, by name.
+Here's the YAML:
+
+```yaml
+  route53_zones:
+    looselytyped:
+      name: "looselytyped."
+      private: false
+```
+
+Here's the lookup:
+
+```hcl
+data "aws_route53_zone" "route53_zones" {
+  for_each     = local.data_sources.route53_zones
+  name         = each.value.name
+  private_zone = each.value.private
+}
+```
+
+Let's make sure it worked.
+Using the console:
+
+```
+data.aws_route53_zone.route53_zones
+```
