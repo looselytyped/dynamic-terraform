@@ -62,3 +62,58 @@ resource "aws_s3_bucket" "bucket" {
   force_destroy       = each.value.force_destroy
   object_lock_enabled = each.value.object_lock_enabled
 }
+
+# aws --profile localstack ec2 describe-security-groups --filters "Name=tag:env,Values=dev" | jq
+resource "aws_security_group" "security_groups" {
+  for_each = local.resources.security_groups
+
+  name        = each.key
+  description = each.value.description
+  vpc_id      = lookup(data.aws_vpc.vpcs, each.value.vpc).id
+
+  dynamic "ingress" {
+    for_each = try(each.value.ingress, [])
+    content {
+      from_port = ingress.value.from
+      to_port   = ingress.value.from
+      protocol  = ingress.value.protocol
+
+      cidr_blocks = flatten([
+        [
+          for block in ingress.value.cidr_blocks : lookup(data.aws_vpc.vpcs, block).cidr_block
+          if lookup(data.aws_vpc.vpcs, block, null) != null
+        ],
+        [
+          for block in ingress.value.cidr_blocks : block
+          if lookup(data.aws_vpc.vpcs, block, null) == null
+        ]
+      ])
+    }
+  }
+
+  dynamic "egress" {
+    for_each = try(each.value.egress, [])
+    content {
+      from_port = egress.value.from
+      to_port   = egress.value.from
+      protocol  = egress.value.protocol
+
+      cidr_blocks = flatten([
+        [
+          for block in egress.value.cidr_blocks : lookup(data.aws_vpc.vpcs, block).cidr_block
+          if lookup(data.aws_vpc.vpcs, block, null) != null
+        ],
+        [
+          for block in egress.value.cidr_blocks : block
+          if lookup(data.aws_vpc.vpcs, block, null) == null
+        ]
+      ])
+    }
+  }
+
+  tags = merge({
+    env = var.environment,
+    }, {
+    Name = each.key
+  })
+}

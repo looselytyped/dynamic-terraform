@@ -21,3 +21,19 @@ resources:
     - name: sample-bucket1
       force_destroy: false
       object_lock_enabled: true
+  security_groups:
+    sec_dev5_22:
+      description: SSH Access
+      vpc: non_prod_vpc
+      ingress:
+        - from: 22
+          to: 22
+          protocol: tcp
+          cidr_blocks:
+            - non_prod_vpc
+        - from: -1
+          to: -1
+          protocol: icmp
+          cidr_blocks:
+            - 0.0.0.0/0
+

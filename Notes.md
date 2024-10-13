@@ -364,3 +364,190 @@ Using the console:
 ```
 data.aws_route53_zone.route53_zones
 ```
+
+### Discussion: Creating security groups
+
+Security groups in AWS belong to a VPC.
+They also describe _multiple_ `ingress` and `egress` blocks that describe how traffic flows in and out of EC2 instances.
+Let's see what the YAML looks like.
+
+```yaml
+  security_groups:
+    sec_dev5_22:
+      description: SSH Access
+      vpc: non_prod_vpc
+      ingress:
+        - from: 22
+          to: 22
+          protocol: tcp
+          cidr_blocks:
+            - non_prod_vpc
+        - from: -1
+          to: -1
+          protocol: icmp
+          cidr_blocks:
+            - 0.0.0.0/0
+      egress:
+        - from: 0
+          to: 0
+          protocol: -1
+          cidr_blocks:
+            - 0.0.0.0/0
+```
+
+Keeping it simple, let's first ignore the ingress/egress blocks.
+Let's make sure we can create a security group.
+Remember, we will need to `lookup` the VPC from our `data.aws_vpc`
+
+```hcl
+# aws --profile localstack ec2 describe-security-groups --filters "Name=tag:env,Values=dev" | jq
+resource "aws_security_group" "security_groups" {
+  for_each = local.resources.security_groups
+
+  name        = each.key
+  description = each.value.description
+  vpc_id      = lookup(data.aws_vpc.vpcs, each.value.vpc).id
+
+  tags = merge({
+    env = var.environment,
+    }, {
+    Name = each.key
+  })
+}
+```
+
+For every ingress/egress block listed in the yaml, we will need to dynamically generate something that looks like this:
+
+```hcl
+  ingress {
+    from_port        = 22
+    to_port          = 22
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+   }
+```
+
+Terraform gives us the `dynamic` to construct repeatable nested blocks.
+The `dynamic` block allows for a nested `content` block to define the body of each block.
+Let's do the bare minimum here:
+
+```
+  dynamic "ingress" {
+    for_each = each.value.ingress
+    content {
+      from_port = ingress.value.from
+      to_port   = ingress.value.from
+      protocol  = ingress.value.protocol
+    }
+  }
+```
+
+Before we proceed, let's fix this.
+What happens if we _don't_ have an `ingress` or `egress` block defined in the YAML?
+
+We can use the `try` to provide use with an escape hatch, like so:
+
+```hcl
+  dynamic "ingress" {
+    for_each = try(each.value.ingress, [])
+    content {
+      from_port = ingress.value.from
+      to_port   = ingress.value.from
+      protocol  = ingress.value.protocol
+    }
+  }
+```
+
+Finally, note that our `ingress` block has a list of `cidr_blocks`.
+These can be a mix of referring to the `cidr_blocks` of a VPC, or inline.
+
+The `ingress` (or `egress`) block takes an array of CIDR blocks—which means we have to construct a list from `lookup`s (from `vpcs`) _and_ inline.
+
+To construct a new array, we can use the `for` loop.
+
+```
+[for l in ["a", "b"]: l]
+```
+
+To combine multiple arrays, we can use us the `flatten` function which combine multiple lists and flatten them together:
+
+```
+> flatten([["a", "b"], [], ["c"]])
+[
+  "a",
+  "b",
+  "c",
+]
+
+# What about a for loop?
+> [for l in ["a", "b"]: l]
+[
+  "a",
+  "b",
+]
+
+# Let's combine flatten with multiple for loops to create a combined array
+> flatten([
+  [
+    for l in ["a", "b"]: l
+  ],
+  [
+    for l in ["c", "d"]: l
+  ]
+])
+[
+  "a",
+  "b",
+  "c",
+  "d",
+]
+```
+
+Finally, you can combine a `for` loop with a conditional:
+
+```
+> [for name in ["neo","trinity","morpheus",]: upper(name) if length(name) < 5]
+[
+  "NEO",
+]
+```
+
+Let's see how we can use this to pull in the `cidr_blocks`.
+Recall that we can list the name of a VPC (who's `cider_block` is the one associated with this `security_group`) or a `cidr_block` inline, like `0.0.0.0/0`.
+
+```hcl
+      cidr_blocks = flatten([
+        [
+          for block in ingress.value.cidr_blocks : lookup(data.aws_vpc.vpcs, block).cidr_block
+          if lookup(data.aws_vpc.vpcs, block, null) != null
+        ],
+        [
+          for block in ingress.value.cidr_blocks : block
+          if lookup(data.aws_vpc.vpcs, block, null) == null
+        ]
+      ])
+```
+
+And finally, the `egress` dynamic blocks don't look that different:
+
+```
+  dynamic "egress" {
+    for_each = try(each.value.egress, [])
+    content {
+      from_port = egress.value.from
+      to_port   = egress.value.from
+      protocol  = egress.value.protocol
+
+      cidr_blocks = flatten([
+        [
+          for block in egress.value.cidr_blocks : lookup(data.aws_vpc.vpcs, block).cidr_block
+          if lookup(data.aws_vpc.vpcs, block, null) != null
+        ],
+        [
+          for block in egress.value.cidr_blocks : block
+          if lookup(data.aws_vpc.vpcs, block, null) == null
+        ]
+      ])
+    }
+  }
+```
