@@ -38,6 +38,7 @@ data "aws_vpc" "vpcs" {
   }
 }
 
+# aws --profile localstack ec2 describe-images --owners "591542846629"
 data "aws_subnet" "subnets" {
   for_each = local.data_sources.subnets
   vpc_id   = lookup(data.aws_vpc.vpcs, each.value.vpc).id
@@ -52,6 +53,28 @@ data "aws_route53_zone" "route53_zones" {
   for_each     = local.data_sources.route53_zones
   name         = each.value.name
   private_zone = each.value.private
+}
+
+data "aws_ami" "amis" {
+  for_each    = local.data_sources.amis
+  most_recent = true
+
+  dynamic "filter" {
+    for_each = try(each.value.filters, {})
+    content {
+      name   = filter.key
+      values = filter.value
+    }
+  }
+
+  owners = each.value.owners
+}
+
+data "aws_security_group" "security_groups" {
+  for_each = local.data_sources.security_groups
+  tags = {
+    Name = each.value.name
+  }
 }
 
 # aws --profile localstack s3api list-buckets
@@ -110,6 +133,34 @@ resource "aws_security_group" "security_groups" {
       ])
     }
   }
+
+  tags = merge({
+    env = var.environment,
+    }, {
+    Name = each.key
+  })
+}
+
+
+resource "aws_instance" "instances" {
+  for_each = local.resources.instances
+
+  ami           = lookup(data.aws_ami.amis, each.value.ami).id
+  instance_type = each.value.size
+
+  # === Networking details ===
+  subnet_id = lookup(data.aws_subnet.subnets, each.value.subnet).id
+  security_groups = flatten([
+    [
+      for sg in each.value.security_groups : lookup(aws_security_group.security_groups, sg).id
+      if lookup(aws_security_group.security_groups, sg, null) != null
+    ],
+    [
+      for sg in each.value.security_groups : lookup(data.aws_security_group.security_groups, sg).id
+      if lookup(data.aws_security_group.security_groups, sg, null) != null
+    ],
+  ])
+  associate_public_ip_address = try(each.value.public_ip, false)
 
   tags = merge({
     env = var.environment,
