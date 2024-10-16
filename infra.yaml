@@ -13,6 +13,26 @@ data_sources:
     looselytyped:
       name: "looselytyped."
       private: false
+  amis:
+    ec2_deploy:
+      owners:
+        - 591542846629
+      filters:
+        name:
+          - amzn2-ami-ecs-gpu-hvm-2.0.*-x86_64-ebs
+        virtualization-type:
+          - hvm
+    amazon_linux:
+      owners:
+        - 591542846629
+      filters:
+        name:
+          - amzn-ami-2018.03.*-amazon-ecs-optimized
+        virtualization-type:
+          - hvm
+  security_groups:
+    allow_mariadb:
+      name: allow_mariadb
 resources:
   s3:
     - name: sample-bucket
@@ -36,4 +56,14 @@ resources:
           protocol: icmp
           cidr_blocks:
             - 0.0.0.0/0
+  instances:
+    api_service:
+      ami: ec2_deploy
+      size: t3.small
+      subnet: subnet_a
+      description: API Service
+      security_groups:
+        - sec_dev5_22
+        - allow_mariadb
+
 
