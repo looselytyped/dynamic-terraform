@@ -551,3 +551,104 @@ And finally, the `egress` dynamic blocks don't look that different:
     }
   }
 ```
+
+### Discussion: Creating EC2 instances
+
+When creating EC2 instances, we need AMIs.
+These will most likely exist in AWS, so let's write some YAML to help us look them up.
+
+```yaml
+  amis:
+    ec2_deploy:
+      owners:
+        - 591542846629
+      filters:
+        name:
+          - amzn2-ami-ecs-gpu-hvm-2.0.*-x86_64-ebs
+        virtualization-type:
+          - hvm
+    amazon_linux:
+      owners:
+        - 591542846629
+      filters:
+        name:
+          - amzn-ami-2018.03.*-amazon-ecs-optimized
+        virtualization-type:
+          - hvm
+```
+
+This YAML sets up just enough for us to use the `data` block.
+Notice that here, we are using the `dynamic` block to build out multiple `filter` blocks:
+
+```
+data "aws_ami" "amis" {
+  for_each    = local.data_sources.amis
+  most_recent = true
+
+  dynamic "filter" {
+    for_each = try(each.value.filters, {})
+    content {
+      name   = filter.key
+      values = filter.value
+    }
+  }
+
+  owners = each.value.owners
+}
+```
+
+Notice how we use the `try` expression to short-circuit out of the `for_each` in case no `filters` were supplied.
+
+Next, if you recall, we have some existing `security_groups` created by the DBA group to allow traffic to a MariaDb instance.
+Let's look those up as well.
+
+```yaml
+  security_groups:
+    allow_mariadb:
+      name: allow_mariadb
+```
+
+And the corresponding lookup:
+
+```
+data "aws_security_group" "security_groups" {
+  for_each = local.data_sources.security_groups
+  tags = {
+    Name = each.value.name
+  }
+}
+```
+
+And we are ready.
+We've see all the code necessary to pull this off before:
+
+```hcl
+resource "aws_instance" "instances" {
+  for_each = local.resources.instances
+
+  ami           = lookup(data.aws_ami.amis, each.value.ami).id
+  instance_type = each.value.size
+
+  # === Networking details ===
+  subnet_id = lookup(data.aws_subnet.subnets, each.value.subnet).id
+  vpc_security_group_ids = flatten([
+    [
+      for sg in each.value.security_groups : lookup(aws_security_group.security_groups, sg).id
+      if lookup(aws_security_group.security_groups, sg, null) != null
+    ],
+    [
+      for sg in each.value.security_groups : lookup(data.aws_security_group.security_groups, sg).id
+      if lookup(data.aws_security_group.security_groups, sg, null) != null
+    ],
+  ])
+  associate_public_ip_address = try(each.value.public_ip, false)
+
+  tags = merge({
+    env = var.environment,
+    }, {
+    Name = each.key
+  })
+}
+```
+
+
