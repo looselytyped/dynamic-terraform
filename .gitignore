@@ -1,0 +1,15 @@
+# LocalStack
+volume/
+
+# Terraform
+.terraform
+.idea
+.vscode
+
+## .tfstate files
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+## Crash log files
+crash.log
