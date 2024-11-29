@@ -9,6 +9,10 @@ data_sources:
     subnet_b:
       name: subnet-b
       vpc: non_prod_vpc
+  route53_zones:
+    looselytyped:
+      name: "looselytyped."
+      private: false
 resources:
   s3:
     - name: sample-bucket

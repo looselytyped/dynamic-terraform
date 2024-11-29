@@ -47,6 +47,13 @@ data "aws_subnet" "subnets" {
   }
 }
 
+# aws --profile localstack route53 create-hosted-zone --name example.com --caller-reference r1 | jq
+data "aws_route53_zone" "route53_zones" {
+  for_each     = local.data_sources.route53_zones
+  name         = each.value.name
+  private_zone = each.value.private
+}
+
 # aws --profile localstack s3api list-buckets
 resource "aws_s3_bucket" "bucket" {
   for_each = { for i in local.resources.s3 : i.name => i }
